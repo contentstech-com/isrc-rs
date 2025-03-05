@@ -8,10 +8,10 @@ use thiserror::Error;
 /// International Standard Recording Code (ISRC)
 ///
 /// ###### References
-/// - https://isrc.ifpi.org/en/isrc-standard/structure
-/// - https://www.ifpi.org/wp-content/uploads/2021/02/ISRC_Handbook.pdf
-/// - https://isrc.ifpi.org/downloads/Valid_Characters.pdf
-/// - https://isrc.ifpi.org/downloads/ISRC_Bulletin-2015-01.pdf
+/// - <https://isrc.ifpi.org/en/isrc-standard/structure>
+/// - <https://www.ifpi.org/wp-content/uploads/2021/02/ISRC_Handbook.pdf>
+/// - <https://isrc.ifpi.org/downloads/Valid_Characters.pdf>
+/// - <https://isrc.ifpi.org/downloads/ISRC_Bulletin-2015-01.pdf>
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Encode, Decode)]
 pub struct Isrc {
     /// First two characters of prefix codes. For example, "AA" in "ISRC AA-6Q7-20-00047". It'll be
