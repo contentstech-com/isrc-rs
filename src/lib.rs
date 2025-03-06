@@ -7,6 +7,31 @@ use thiserror::Error;
 
 /// International Standard Recording Code (ISRC)
 ///
+/// An ISRC uniquely identifies sound recordings and music videos internationally.
+/// Each ISRC consists of 12 alphanumeric characters with the following structure:
+///
+/// - Agency Code (2 characters): Unique identifier for the ISRC agency
+/// - Registrant Code (3 characters): Unique identifier for the ISRC registrant
+/// - Year of Reference (2 digits): Identifies the year the ISRC was assigned
+/// - Designation Code (5 digits): Uniquely assigned number by the registrant
+///
+/// When formatted for display, an ISRC may appear as: `ISRC AA-RRR-YY-DDDDD`
+///
+/// # Examples
+///
+/// ```
+/// use isrc::Isrc;
+///
+/// // Parse an ISRC from a string
+/// let isrc = Isrc::from_code("AA6Q72000047").unwrap();
+///
+/// // Display a formatted ISRC
+/// assert_eq!(isrc.to_string(), "ISRC AA-6Q7-20-00047");
+///
+/// // Convert to compact code format
+/// assert_eq!(isrc.to_code(), "AA6Q72000047");
+/// ```
+///
 /// ###### References
 /// - <https://isrc.ifpi.org/en/isrc-standard/structure>
 /// - <https://www.ifpi.org/wp-content/uploads/2021/02/ISRC_Handbook.pdf>
@@ -14,35 +39,77 @@ use thiserror::Error;
 /// - <https://isrc.ifpi.org/downloads/ISRC_Bulletin-2015-01.pdf>
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Encode, Decode)]
 pub struct Isrc {
-    /// First two characters of prefix codes. For example, "AA" in "ISRC AA-6Q7-20-00047". It'll be
-    /// stored as-is.
     agency_prefix: [u8; 2],
-    /// Last three characters of prefix codes. For example, "6Q7" in "ISRC AA-6Q7-20-00047". It'll
-    /// be interpreted as a base-36 number, and stored as a u16 number.
     registrant_prefix: u16,
-    /// Year of reference and designation code. For example, "2000047" in "ISRC AA-6Q7-20-00047".
-    /// It'll be interpreted as a base-10 number, and stored as a u32 number. Only LSB 24 bits are
-    /// used.
     rest: u32,
 }
 
+/// Error that can occur when parsing an ISRC from string or bytes.
+///
+/// This enum represents all the possible errors that can occur when validating or parsing
+/// an ISRC from various input formats.
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Error, Encode, Decode)]
 pub enum IsrcParseError {
+    /// The input string has an invalid length. An ISRC code must be exactly 12 characters.
     #[error("Invalid length (expected 12B input, found {found}B)")]
     InvalidLength { found: usize },
+
+    /// The agency code contains an invalid character. Must be ASCII letters [a-zA-Z].
     #[error(r"Invalid agency prefix (expected [a-zA-Z], found '\x{found:x}' at {pos})")]
     InvalidAgencyPrefix { found: u8, pos: u8 },
+
+    /// The registrant code contains an invalid character. Must be alphanumeric [a-zA-Z0-9].
     #[error(r"Invalid registrant prefix (expected [a-zA-Z0-9], found '\x{found:x}' at {pos})")]
     InvalidRegistrantPrefix { found: u8, pos: u8 },
+
+    /// The registrant prefix exceeds the maximum allowed value (must be < 36³).
     #[error(r"Registrant prefix out of range (expected 0 <= value < 36*36*36, found {value})")]
     RegistrantPrefixOutOfRange { value: u16 },
+
+    /// A digit in the year or designation code is invalid. Must be numeric [0-9].
     #[error(r"Invalid digit (expected [0-9], found '\x{found:x}' at {pos})")]
     InvalidDigit { found: u8, pos: u8 },
+
+    /// The numeric portion of the ISRC exceeds the maximum allowed value (must be < 10,000,000).
     #[error(r"Rest value out of range (expected 0 <= value < 10000000, found {value})")]
     ValueOutOfRange { value: u32 },
 }
 
 impl Isrc {
+    /// Creates an `Isrc` from a string code.
+    ///
+    /// The input string must be exactly 12 characters long and follow the ISRC format:
+    /// - First 2 characters: Agency code (letters only)
+    /// - Next 3 characters: Registrant code (alphanumeric)
+    /// - Last 7 characters: Year and designation code (digits only)
+    ///
+    /// Letters in the input string are case-insensitive and will be normalized to uppercase.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use isrc::Isrc;
+    ///
+    /// // Valid ISRC
+    /// let isrc = Isrc::from_code("AA6Q72000047").unwrap();
+    /// assert_eq!(isrc.to_string(), "ISRC AA-6Q7-20-00047");
+    ///
+    /// // Valid ISRC with lowercase letters
+    /// let isrc = Isrc::from_code("aa6q72000047").unwrap();
+    /// assert_eq!(isrc.to_string(), "ISRC AA-6Q7-20-00047");
+    ///
+    /// // Invalid ISRC (incorrect length)
+    /// assert!(Isrc::from_code("AA6Q7200047").is_err());
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an `IsrcParseError` if:
+    /// - The input is not exactly 12 characters long
+    /// - The agency code contains non-letter characters
+    /// - The registrant code contains characters that are not alphanumeric
+    /// - The year and designation codes contain non-digit characters
+    /// - The values exceed their allowed ranges
     pub const fn from_code(code: &str) -> Result<Self, IsrcParseError> {
         let code = code.as_bytes();
         if code.len() != 12 {
@@ -96,6 +163,20 @@ impl Isrc {
         })
     }
 
+    /// Converts the `Isrc` to its compact 12-character string representation.
+    ///
+    /// This method returns the ISRC in its compact format without hyphens or the "ISRC" prefix,
+    /// which is suitable for storage or transmission.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use isrc::Isrc;
+    /// use std::str::FromStr;
+    ///
+    /// let isrc = Isrc::from_str("AA6Q72000047").unwrap();
+    /// assert_eq!(isrc.to_code(), "AA6Q72000047");
+    /// ```
     pub fn to_code(self) -> String {
         let mut n = self.registrant_prefix;
 
@@ -117,6 +198,32 @@ impl Isrc {
         )
     }
 
+    /// Creates an `Isrc` from an 8-byte array.
+    ///
+    /// This method deserializes an ISRC from its compact binary representation, which is
+    /// primarily useful for binary serialization formats.
+    ///
+    /// The binary layout is:
+    /// - Bytes 0-3: `rest` field (year and designation code) as little-endian u32
+    /// - Bytes 4-5: `agency_prefix` as two ASCII uppercase letters
+    /// - Bytes 6-7: `registrant_prefix` as little-endian u16
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use isrc::Isrc;
+    ///
+    /// let bytes = [0xB1, 0xCB, 0x74, 0x00, b'Z', b'Z', 0x0F, 0x22];
+    /// let isrc = Isrc::from_bytes(&bytes).unwrap();
+    /// assert_eq!(isrc.to_code(), "ZZ6Q77654321");
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an `IsrcParseError` if:
+    /// - The agency prefix contains non-uppercase letter characters
+    /// - The registrant prefix exceeds the maximum allowed value (36³-1)
+    /// - The rest field exceeds the maximum allowed value (9,999,999)
     pub const fn from_bytes(bytes: &[u8; 8]) -> Result<Self, IsrcParseError> {
         // Stored according to the default Rust struct layout.
         let rest = u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
@@ -151,6 +258,25 @@ impl Isrc {
         })
     }
 
+    /// Converts the `Isrc` to its compact 8-byte binary representation.
+    ///
+    /// This method serializes the ISRC into a fixed-size array suitable for binary storage
+    /// or transmission. It is the inverse of `from_bytes`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use isrc::Isrc;
+    /// use std::str::FromStr;
+    ///
+    /// let isrc = Isrc::from_str("AZ6Q77654321").unwrap();
+    /// let bytes = isrc.to_bytes();
+    /// assert_eq!(bytes, [0xB1, 0xCB, 0x74, 0x00, b'A', b'Z', 0x0F, 0x22]);
+    ///
+    /// // Round-trip conversion
+    /// let round_trip = Isrc::from_bytes(&bytes).unwrap();
+    /// assert_eq!(round_trip, isrc);
+    /// ```
     pub const fn to_bytes(self) -> [u8; 8] {
         [
             self.rest as u8,
@@ -269,6 +395,22 @@ fn test_isrc_to_bytes() {
     );
 }
 
+/// Implements the `FromStr` trait for `Isrc` to allow parsing from strings using the `parse` method.
+///
+/// This implementation delegates to `Isrc::from_code`.
+///
+/// # Examples
+///
+/// ```
+/// use isrc::Isrc;
+/// use std::str::FromStr;
+///
+/// // Parse using FromStr
+/// let isrc = Isrc::from_str("AA6Q72000047").unwrap();
+///
+/// // Or using the more idiomatic parse method
+/// let isrc: Isrc = "AA6Q72000047".parse().unwrap();
+/// ```
 impl FromStr for Isrc {
     type Err = IsrcParseError;
 
@@ -324,6 +466,24 @@ fn test_isrc_from_str() -> Result<(), IsrcParseError> {
     Ok(())
 }
 
+/// Implements the `Display` trait for `Isrc` to provide a formatted string representation.
+///
+/// This formats the ISRC with the standard hyphenated format and "ISRC" prefix:
+/// `ISRC AA-RRR-YY-NNNNN` where:
+/// - AA is the agency code
+/// - RRR is the registrant code
+/// - YY is the year of reference
+/// - NNNNN is the designation code
+///
+/// # Examples
+///
+/// ```
+/// use isrc::Isrc;
+/// use std::str::FromStr;
+///
+/// let isrc = Isrc::from_str("AA6Q72000047").unwrap();
+/// assert_eq!(isrc.to_string(), "ISRC AA-6Q7-20-00047");
+/// ```
 impl Display for Isrc {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut n = self.registrant_prefix;
@@ -363,6 +523,27 @@ fn test_isrc_display() -> Result<(), IsrcParseError> {
     Ok(())
 }
 
+/// Implements the `Serialize` trait for `Isrc` to support serialization with serde.
+///
+/// This implementation provides format-aware serialization:
+/// - For human-readable formats (like JSON, TOML): Uses the compact string representation (`to_code()`)
+/// - For binary formats (like bincode): Uses the binary representation (`to_bytes()`)
+///
+/// # Examples
+///
+/// ```
+/// use isrc::Isrc;
+/// use std::str::FromStr;
+///
+/// let isrc = Isrc::from_str("AA6Q72000047").unwrap();
+///
+/// // JSON serialization (human-readable)
+/// let json = serde_json::to_string(&isrc).unwrap();
+/// assert_eq!(json, r#""AA6Q72000047""#);
+///
+/// // Bincode serialization (binary)
+/// let binary = bincode::serialize(&isrc).unwrap();
+/// ```
 impl Serialize for Isrc {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -400,6 +581,31 @@ fn test_isrc_serialize() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// Implements the `Deserialize` trait for `Isrc` to support deserialization with serde.
+///
+/// This implementation provides format-aware deserialization:
+/// - For human-readable formats (like JSON, TOML): Expects a string and uses `from_code()`
+/// - For binary formats (like bincode): Expects an 8-byte array and uses `from_bytes()`
+///
+/// # Examples
+///
+/// ```
+/// use isrc::Isrc;
+/// use serde::Deserialize;
+///
+/// // JSON deserialization (human-readable)
+/// let isrc: Isrc = serde_json::from_str(r#""AA6Q72000047""#).unwrap();
+/// assert_eq!(isrc.to_code(), "AA6Q72000047");
+///
+/// // From a struct
+/// #[derive(Deserialize)]
+/// struct Record {
+///     isrc: Isrc,
+/// }
+///
+/// let record: Record = serde_json::from_str(r#"{"isrc":"AA6Q72000047"}"#).unwrap();
+/// assert_eq!(record.isrc.to_code(), "AA6Q72000047");
+/// ```
 impl<'de> Deserialize<'de> for Isrc {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
