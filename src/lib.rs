@@ -617,7 +617,7 @@ impl<'de> Deserialize<'de> for Isrc {
         D: serde::Deserializer<'de>,
     {
         if deserializer.is_human_readable() {
-            Isrc::from_code(&String::deserialize(deserializer)?)
+            Isrc::from_code(&heapless::String::<12>::deserialize(deserializer)?)
         } else {
             Isrc::from_bytes(&<[u8; 8]>::deserialize(deserializer)?)
         }
