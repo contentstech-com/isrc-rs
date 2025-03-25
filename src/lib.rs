@@ -73,6 +73,8 @@
 //! assert_eq!(deserialized.isrc, recording.isrc);
 //! ```
 
+#![deny(missing_docs)]
+
 use std::fmt::{self, Display, Formatter};
 use std::str::{FromStr, from_utf8_unchecked};
 
@@ -132,27 +134,51 @@ fn test_isrc_size() {
 pub enum IsrcParseError {
     /// The input string has an invalid length. An ISRC code must be exactly 12 characters.
     #[error("Invalid length (expected 12B input, found {found}B)")]
-    InvalidLength { found: usize },
+    InvalidLength {
+        /// The (invalid) length of the input string.
+        found: usize,
+    },
 
     /// The agency code contains an invalid character. Must be ASCII letters [a-zA-Z].
     #[error(r"Invalid agency prefix (expected [a-zA-Z], found '\x{found:x}' at {pos})")]
-    InvalidAgencyPrefix { found: u8, pos: u8 },
+    InvalidAgencyPrefix {
+        /// The (invalid) character found in the agency code.
+        found: u8,
+        /// The position of the invalid character in the input string.
+        pos: u8,
+    },
 
     /// The registrant code contains an invalid character. Must be alphanumeric [a-zA-Z0-9].
     #[error(r"Invalid registrant prefix (expected [a-zA-Z0-9], found '\x{found:x}' at {pos})")]
-    InvalidRegistrantPrefix { found: u8, pos: u8 },
+    InvalidRegistrantPrefix {
+        /// The (invalid) character found in the registrant code.
+        found: u8,
+        /// The position of the invalid character in the input string.
+        pos: u8,
+    },
 
     /// The registrant prefix exceeds the maximum allowed value (must be < 36³).
     #[error(r"Registrant prefix out of range (expected 0 <= value < 36*36*36, found {value})")]
-    RegistrantPrefixOutOfRange { value: u16 },
+    RegistrantPrefixOutOfRange {
+        /// The (invalid) value of the registrant prefix.
+        value: u16,
+    },
 
     /// A digit in the year or designation code is invalid. Must be numeric [0-9].
     #[error(r"Invalid digit (expected [0-9], found '\x{found:x}' at {pos})")]
-    InvalidDigit { found: u8, pos: u8 },
+    InvalidDigit {
+        /// The (invalid) character found in the year or designation code.
+        found: u8,
+        /// The position of the invalid character in the input string.
+        pos: u8,
+    },
 
     /// The numeric portion of the ISRC exceeds the maximum allowed value (must be < 10,000,000).
     #[error(r"Rest value out of range (expected 0 <= value < 10000000, found {value})")]
-    ValueOutOfRange { value: u32 },
+    ValueOutOfRange {
+        /// The (invalid) value of the numeric portion of the ISRC.
+        value: u32,
+    },
 }
 
 impl Isrc {
