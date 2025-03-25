@@ -44,6 +44,11 @@ pub struct Isrc {
     rest: u32,
 }
 
+#[test]
+fn test_isrc_size() {
+    assert_eq!(size_of::<Isrc>(), 8);
+}
+
 /// Error that can occur when parsing an ISRC from string or bytes.
 ///
 /// This enum represents all the possible errors that can occur when validating or parsing
