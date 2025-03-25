@@ -41,6 +41,7 @@
 //! assert_eq!(isrc.to_string(), "ISRC AA-6Q7-20-00047");
 //!
 //! // Convert to compact code format
+//! # #[cfg(feature = "alloc")]
 //! assert_eq!(isrc.to_code(), "AA6Q72000047");
 //!
 //! // Binary representation
@@ -65,6 +66,7 @@
 //! // For human-readable formats like JSON and TOML, ISRCs are serialized as strings
 //! let json = r#"{"title":"Some Song","isrc":"AA6Q72000047"}"#;
 //! let recording: Recording = serde_json::from_str(json).unwrap();
+//! # #[cfg(feature = "alloc")]
 //! assert_eq!(recording.isrc.to_code(), "AA6Q72000047");
 //!
 //! // For binary formats like bincode, ISRCs are serialized efficiently as 8-byte arrays
@@ -73,10 +75,16 @@
 //! assert_eq!(deserialized.isrc, recording.isrc);
 //! ```
 
+#![no_std]
 #![deny(missing_docs)]
 
-use std::fmt::{self, Display, Formatter};
-use std::str::{FromStr, from_utf8_unchecked};
+use core::fmt::{self, Display, Formatter};
+use core::str::{FromStr, from_utf8_unchecked};
+
+#[cfg(feature = "alloc")]
+extern crate alloc;
+#[cfg(feature = "alloc")]
+use alloc::string::String;
 
 use bitcode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
@@ -106,6 +114,7 @@ use thiserror::Error;
 /// assert_eq!(isrc.to_string(), "ISRC AA-6Q7-20-00047");
 ///
 /// // Convert to compact code format
+/// # #[cfg(feature = "alloc")]
 /// assert_eq!(isrc.to_code(), "AA6Q72000047");
 /// ```
 ///
@@ -283,6 +292,7 @@ impl Isrc {
     /// let isrc = Isrc::from_str("AA6Q72000047").unwrap();
     /// assert_eq!(isrc.to_code(), "AA6Q72000047");
     /// ```
+    #[cfg(feature = "alloc")]
     pub fn to_code(self) -> String {
         let mut n = self.registrant_prefix;
 
@@ -294,8 +304,9 @@ impl Isrc {
 
         let d0 = ascii_uppercase_from_digit_base36(n) as char;
 
-        format!(
+        alloc::format!(
             "{}{}{}{}{:07}",
+            // SAFETY: `self.agency_prefix` is always ASCII uppercase
             unsafe { from_utf8_unchecked(&self.agency_prefix) },
             d0,
             d1,
@@ -350,7 +361,7 @@ impl Isrc {
         ret[1].write(self.agency_prefix[1]);
         ret[0].write(self.agency_prefix[0]);
 
-        // Everything has been initialized
+        // SAFETY: The array is fully initialized
         unsafe { core::mem::transmute::<_, [u8; 12]>(ret) }
     }
 
@@ -371,6 +382,7 @@ impl Isrc {
     ///
     /// let bytes = [0xB1, 0xCB, 0x74, 0x00, b'Z', b'Z', 0x0F, 0x22];
     /// let isrc = Isrc::from_bytes(&bytes).unwrap();
+    /// # #[cfg(feature = "alloc")]
     /// assert_eq!(isrc.to_code(), "ZZ6Q77654321");
     /// ```
     ///
@@ -458,7 +470,9 @@ fn test_isrc() -> Result<(), IsrcParseError> {
             rest: 20_00047,
         }
     );
+    #[cfg(feature = "alloc")]
     assert_eq!(isrc.to_code(), "AA6Q72000047");
+    assert_eq!(isrc.to_code_fixed(), *b"AA6Q72000047");
 
     // Lowercase
     let isrc = Isrc::from_code("aa6q72000047")?;
@@ -470,7 +484,9 @@ fn test_isrc() -> Result<(), IsrcParseError> {
             rest: 20_00047,
         }
     );
+    #[cfg(feature = "alloc")]
     assert_eq!(isrc.to_code(), "AA6Q72000047");
+    assert_eq!(isrc.to_code_fixed(), *b"AA6Q72000047");
 
     // Invalid inputs
     assert_matches::assert_matches!(
@@ -511,7 +527,9 @@ fn test_isrc_from_bytes() -> Result<(), IsrcParseError> {
             rest: 76_54321,
         }
     );
+    #[cfg(feature = "alloc")]
     assert_eq!(isrc.to_code(), "ZZ6Q77654321");
+    assert_eq!(isrc.to_code_fixed(), *b"ZZ6Q77654321");
 
     // Invalid inputs
     let fail = Isrc::from_bytes(&[0xB1, 0xCB, 0x74, 0x00, 0x5A, 0x00, 0x0F, 0x22]);
@@ -586,7 +604,9 @@ fn test_isrc_from_str() -> Result<(), IsrcParseError> {
             rest: 20_00047,
         }
     );
+    #[cfg(feature = "alloc")]
     assert_eq!(isrc.to_code(), "AA6Q72000047");
+    assert_eq!(isrc.to_code_fixed(), *b"AA6Q72000047");
 
     // Lowercase
     let isrc: Isrc = "aa6q72000047".parse()?;
@@ -598,7 +618,9 @@ fn test_isrc_from_str() -> Result<(), IsrcParseError> {
             rest: 20_00047,
         }
     );
+    #[cfg(feature = "alloc")]
     assert_eq!(isrc.to_code(), "AA6Q72000047");
+    assert_eq!(isrc.to_code_fixed(), *b"AA6Q72000047");
 
     // Invalid inputs
     assert_matches::assert_matches!(
@@ -655,6 +677,7 @@ impl Display for Isrc {
         write!(
             f,
             "ISRC {}-{}{}{}-{:02}-{:05}",
+            // SAFETY: `self.agency_prefix` is always ASCII uppercase
             unsafe { from_utf8_unchecked(&self.agency_prefix) },
             d0,
             d1,
@@ -666,15 +689,18 @@ impl Display for Isrc {
 }
 
 #[test]
-fn test_isrc_display() -> Result<(), IsrcParseError> {
-    assert_eq!(
-        Isrc::from_code("AA6Q72000047")?.to_string(),
-        "ISRC AA-6Q7-20-00047"
-    );
-    assert_eq!(
-        Isrc::from_code("Zz6q72412345")?.to_string(),
-        "ISRC ZZ-6Q7-24-12345"
-    );
+fn test_isrc_display() -> anyhow::Result<()> {
+    use core::fmt::Write;
+
+    let mut buffer = heapless::String::<32>::new();
+    let isrc = Isrc::from_code("AA6Q72000047")?;
+    write!(&mut buffer, "{}", isrc)?;
+    assert_eq!(buffer, "ISRC AA-6Q7-20-00047");
+
+    let mut buffer = heapless::String::<20>::new();
+    let isrc = Isrc::from_code("Zz6q72412345")?;
+    write!(&mut buffer, "{}", isrc)?;
+    assert_eq!(buffer, "ISRC ZZ-6Q7-24-12345");
 
     Ok(())
 }
@@ -705,8 +731,13 @@ impl Serialize for Isrc {
     where
         S: serde::Serializer,
     {
+        use core::str::from_utf8_unchecked;
+
         if serializer.is_human_readable() {
-            self.to_code().serialize(serializer)
+            let code = self.to_code_fixed();
+
+            // SAFETY: `to_code_fixed` always returns a valid UTF-8 string
+            unsafe { from_utf8_unchecked(&code) }.serialize(serializer)
         } else {
             self.to_bytes().serialize(serializer)
         }
@@ -714,20 +745,22 @@ impl Serialize for Isrc {
 }
 
 #[test]
-fn test_isrc_serialize() -> Result<(), Box<dyn std::error::Error>> {
-    use std::collections::HashMap;
-
+fn test_isrc_serialize() -> anyhow::Result<()> {
     let isrc = Isrc::from_code("AA6Q72000047")?;
 
     // JSON (human readable)
     assert_eq!(serde_json::to_string(&isrc)?, r#""AA6Q72000047""#);
     // TOML (human readable)
-    let table: HashMap<&str, Isrc> = HashMap::from_iter([("isrc", isrc)]);
-    assert_eq!(
-        toml::to_string(&table)?,
-        r#"isrc = "AA6Q72000047"
+    #[cfg(feature = "alloc")]
+    {
+        use alloc::collections::BTreeMap;
+        let table: BTreeMap<&str, Isrc> = BTreeMap::from_iter([("isrc", isrc)]);
+        assert_eq!(
+            toml::to_string(&table)?,
+            r#"isrc = "AA6Q72000047"
 "#
-    );
+        );
+    }
     // Bincode (binary)
     assert_eq!(
         bincode::serialize(&isrc)?,
@@ -751,6 +784,7 @@ fn test_isrc_serialize() -> Result<(), Box<dyn std::error::Error>> {
 ///
 /// // JSON deserialization (human-readable)
 /// let isrc: Isrc = serde_json::from_str(r#""AA6Q72000047""#).unwrap();
+/// # #[cfg(feature = "alloc")]
 /// assert_eq!(isrc.to_code(), "AA6Q72000047");
 ///
 /// // From a struct
@@ -760,6 +794,7 @@ fn test_isrc_serialize() -> Result<(), Box<dyn std::error::Error>> {
 /// }
 ///
 /// let record: Record = serde_json::from_str(r#"{"isrc":"AA6Q72000047"}"#).unwrap();
+/// # #[cfg(feature = "alloc")]
 /// assert_eq!(record.isrc.to_code(), "AA6Q72000047");
 /// ```
 impl<'de> Deserialize<'de> for Isrc {
@@ -777,7 +812,7 @@ impl<'de> Deserialize<'de> for Isrc {
 }
 
 #[test]
-fn test_isrc_deserialize() -> Result<(), Box<dyn std::error::Error>> {
+fn test_isrc_deserialize() -> anyhow::Result<()> {
     #[derive(Debug, Deserialize)]
     struct TestInput {
         isrc: Isrc,
