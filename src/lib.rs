@@ -286,13 +286,13 @@ impl Isrc {
     pub fn to_code(self) -> String {
         let mut n = self.registrant_prefix;
 
-        let d2 = ascii_uppercase_from_digit_base36(n);
+        let d2 = ascii_uppercase_from_digit_base36(n) as char;
         n /= 36;
 
-        let d1 = ascii_uppercase_from_digit_base36(n);
+        let d1 = ascii_uppercase_from_digit_base36(n) as char;
         n /= 36;
 
-        let d0 = ascii_uppercase_from_digit_base36(n);
+        let d0 = ascii_uppercase_from_digit_base36(n) as char;
 
         format!(
             "{}{}{}{}{:07}",
@@ -302,6 +302,56 @@ impl Isrc {
             d2,
             self.rest,
         )
+    }
+
+    /// Converts the `Isrc` to its compact 12-character string representation. It's zero heap
+    /// allocation version of [`to_code`](#method.to_code).
+    ///
+    /// This method returns the ISRC in its compact format without hyphens or the "ISRC" prefix,
+    /// which is suitable for storage or transmission.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use isrc::Isrc;
+    /// use std::str::FromStr;
+    ///
+    /// let isrc = Isrc::from_str("AA6Q72000047").unwrap();
+    /// assert_eq!(isrc.to_code_fixed(), *b"AA6Q72000047");
+    /// ```
+    pub fn to_code_fixed(self) -> [u8; 12] {
+        use core::mem::MaybeUninit;
+
+        let mut ret = [const { MaybeUninit::<u8>::uninit() }; 12];
+
+        // ret[5..12] = sprintf("%07d", self.rest)
+        let mut n = self.rest;
+        ret[11].write(b'0' + (n % 10) as u8);
+        n /= 10;
+        ret[10].write(b'0' + (n % 10) as u8);
+        n /= 10;
+        ret[9].write(b'0' + (n % 10) as u8);
+        n /= 10;
+        ret[8].write(b'0' + (n % 10) as u8);
+        n /= 10;
+        ret[7].write(b'0' + (n % 10) as u8);
+        n /= 10;
+        ret[6].write(b'0' + (n % 10) as u8);
+        n /= 10;
+        ret[5].write(b'0' + (n % 10) as u8);
+
+        let mut n = self.registrant_prefix;
+        ret[4].write(ascii_uppercase_from_digit_base36(n));
+        n /= 36;
+        ret[3].write(ascii_uppercase_from_digit_base36(n));
+        n /= 36;
+        ret[2].write(ascii_uppercase_from_digit_base36(n));
+
+        ret[1].write(self.agency_prefix[1]);
+        ret[0].write(self.agency_prefix[0]);
+
+        // Everything has been initialized
+        unsafe { core::mem::transmute::<_, [u8; 12]>(ret) }
     }
 
     /// Creates an `Isrc` from an 8-byte array.
@@ -594,13 +644,13 @@ impl Display for Isrc {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut n = self.registrant_prefix;
 
-        let d2 = ascii_uppercase_from_digit_base36(n % 36);
+        let d2 = ascii_uppercase_from_digit_base36(n % 36) as char;
         n /= 36;
 
-        let d1 = ascii_uppercase_from_digit_base36(n % 36);
+        let d1 = ascii_uppercase_from_digit_base36(n % 36) as char;
         n /= 36;
 
-        let d0 = ascii_uppercase_from_digit_base36(n % 36);
+        let d0 = ascii_uppercase_from_digit_base36(n % 36) as char;
 
         write!(
             f,
@@ -780,11 +830,11 @@ fn test_isrc_deserialize() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-const fn ascii_uppercase_from_digit_base36(d: u16) -> char {
+const fn ascii_uppercase_from_digit_base36(d: u16) -> u8 {
     let d = (d % 36) as u8;
-    (match d {
+    match d {
         0..=9 => d + b'0',
         10..=35 => d + b'A' - 10,
         _ => unreachable!(),
-    }) as char
+    }
 }
