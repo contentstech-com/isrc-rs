@@ -627,7 +627,7 @@ impl<'de> Deserialize<'de> for Isrc {
 
 #[test]
 fn test_isrc_deserialize() -> Result<(), Box<dyn std::error::Error>> {
-    #[derive(Deserialize)]
+    #[derive(Debug, Deserialize)]
     struct TestInput {
         isrc: Isrc,
     }
@@ -662,6 +662,19 @@ fn test_isrc_deserialize() -> Result<(), Box<dyn std::error::Error>> {
             rest: 20_00047,
         }
     );
+
+    //
+    // Wrong inputs
+    //
+    // JSON (human readable)
+    let r: Result<TestInput, _> = serde_json::from_str(r#"{"isrc":"AA6Q72000047777777"}"#);
+    assert_matches::assert_matches!(r, Err(serde_json::Error { .. }));
+    // TOML (human readable)
+    let r: Result<TestInput, _> = toml::from_str(r#"isrc = "AA6Q72000""#);
+    assert_matches::assert_matches!(r, Err(toml::de::Error { .. }));
+    // Bincode (binary)
+    let r: Result<TestInput, _> = bincode::deserialize(b"\xAF\x84\x00\x41\x41\x0f\x22");
+    assert_matches::assert_matches!(r, Err(bincode::Error { .. }));
 
     Ok(())
 }
