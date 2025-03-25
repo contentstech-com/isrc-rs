@@ -1,5 +1,5 @@
 use std::fmt::{self, Display, Formatter};
-use std::str::{from_utf8_unchecked, FromStr};
+use std::str::{FromStr, from_utf8_unchecked};
 
 use bitcode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
