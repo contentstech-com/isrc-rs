@@ -53,6 +53,8 @@
 //! ### Serde integration
 //!
 //! ```rust
+//! # #[cfg(feature = "serde")]
+//! # {
 //! use isrc::Isrc;
 //! use serde::{Deserialize, Serialize};
 //!
@@ -73,6 +75,7 @@
 //! let binary = bincode::serialize(&recording).unwrap();
 //! let deserialized: Recording = bincode::deserialize(&binary).unwrap();
 //! assert_eq!(deserialized.isrc, recording.isrc);
+//! # }
 //! ```
 
 #![no_std]
@@ -86,8 +89,11 @@ extern crate alloc;
 #[cfg(feature = "alloc")]
 use alloc::string::String;
 
+#[cfg(feature = "bitcode")]
 use bitcode::{Decode, Encode};
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+
 use thiserror::Error;
 
 /// International Standard Recording Code (ISRC)
@@ -123,7 +129,8 @@ use thiserror::Error;
 /// - <https://www.ifpi.org/wp-content/uploads/2021/02/ISRC_Handbook.pdf>
 /// - <https://isrc.ifpi.org/downloads/Valid_Characters.pdf>
 /// - <https://isrc.ifpi.org/downloads/ISRC_Bulletin-2015-01.pdf>
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Encode, Decode)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[cfg_attr(feature = "bitcode", derive(Encode, Decode))]
 pub struct Isrc {
     agency_prefix: [u8; 2],
     registrant_prefix: u16,
@@ -139,7 +146,8 @@ fn test_isrc_size() {
 ///
 /// This enum represents all the possible errors that can occur when validating or parsing
 /// an ISRC from various input formats.
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Error, Encode, Decode)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Error)]
+#[cfg_attr(feature = "bitcode", derive(Encode, Decode))]
 pub enum IsrcParseError {
     /// The input string has an invalid length. An ISRC code must be exactly 12 characters.
     #[error("Invalid length (expected 12B input, found {found}B)")]
@@ -726,6 +734,7 @@ fn test_isrc_display() -> anyhow::Result<()> {
 /// // Bincode serialization (binary)
 /// let binary = bincode::serialize(&isrc).unwrap();
 /// ```
+#[cfg(feature = "serde")]
 impl Serialize for Isrc {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -745,6 +754,7 @@ impl Serialize for Isrc {
 }
 
 #[test]
+#[cfg(feature = "serde")]
 fn test_isrc_serialize() -> anyhow::Result<()> {
     let isrc = Isrc::from_code("AA6Q72000047")?;
 
@@ -797,6 +807,7 @@ fn test_isrc_serialize() -> anyhow::Result<()> {
 /// # #[cfg(feature = "alloc")]
 /// assert_eq!(record.isrc.to_code(), "AA6Q72000047");
 /// ```
+#[cfg(feature = "serde")]
 impl<'de> Deserialize<'de> for Isrc {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -812,6 +823,7 @@ impl<'de> Deserialize<'de> for Isrc {
 }
 
 #[test]
+#[cfg(feature = "serde")]
 fn test_isrc_deserialize() -> anyhow::Result<()> {
     #[derive(Debug, Deserialize)]
     struct TestInput {
