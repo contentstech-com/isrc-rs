@@ -338,7 +338,7 @@ impl Isrc {
     /// let isrc = Isrc::from_str("AA6Q72000047").unwrap();
     /// assert_eq!(isrc.to_code_fixed(), *b"AA6Q72000047");
     /// ```
-    pub fn to_code_fixed(self) -> [u8; 12] {
+    pub const fn to_code_fixed(self) -> [u8; 12] {
         use core::mem::MaybeUninit;
 
         let mut ret = [const { MaybeUninit::<u8>::uninit() }; 12];
