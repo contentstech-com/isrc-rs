@@ -90,7 +90,7 @@ assert_eq!(deserialized.isrc, recording.isrc);
 
 ---
 
-*lazycsv* is primarily distributed under the terms of both the [Apache License
+*isrc-rs* is primarily distributed under the terms of both the [Apache License
 (Version 2.0)] and the [MIT license]. See [COPYRIGHT] for details.
 
 [MIT license]: LICENSE-MIT
