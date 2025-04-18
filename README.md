@@ -1,3 +1,9 @@
+> Migrated to [contentstech-com/crates](https://github.com/contentstech-com/crates/tree/main/crates/isrc)
+> --------
+> This repo has been migrated to https://github.com/contentstech-com/crates/tree/main/crates/isrc
+
+&nbsp;
+
 # isrc-rs
 
 [![Crates.io](https://img.shields.io/crates/v/isrc.svg)](https://crates.io/crates/isrc)
